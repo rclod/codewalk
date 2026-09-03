@@ -1,7 +1,9 @@
 # Build output
 /bin/
 /dist/
-codewalk
+# The built binary at the repository root. The leading slash matters: a bare
+# "codewalk" pattern would also match the cmd/codewalk/ source directory.
+/codewalk
 
 # Go
 *.test

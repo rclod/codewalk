@@ -58,18 +58,16 @@ If you want critique, ask for it in a follow-up. The default stays explanatory.
 
 ## Install
 
-From a clone:
+```bash
+go install github.com/rclod/codewalk/cmd/codewalk@latest
+```
+
+Or from a clone:
 
 ```bash
 make install     # builds and installs to $(go env GOPATH)/bin
 make build       # builds ./bin/codewalk instead
 make test        # runs the test suite
-```
-
-Once the repository is published, installation is a single command:
-
-```bash
-go install github.com/rclod/codewalk/cmd/codewalk@latest
 ```
 
 Either way you get one static binary, with the web UI and its assets embedded.
@@ -80,8 +78,9 @@ export PATH="$PATH:$(go env GOPATH)/bin"
 codewalk --help
 ```
 
-To upgrade, pull and re-run `make install`. To uninstall, run `make uninstall`
-and, if you want the stored walkthroughs gone too, delete `~/.codewalk`.
+To upgrade, re-run `go install` with `@latest`. To uninstall, run
+`make uninstall` or delete the binary, and delete `~/.codewalk` if you want the
+stored walkthroughs gone too.
 
 Requires Go 1.22+ and `git` on `PATH`.
 

@@ -9,7 +9,7 @@ You need Go 1.22+ and `git`. Nothing else — no services, no database, no
 external accounts.
 
 ```bash
-git clone <repository-url> codewalk
+git clone https://github.com/rclod/codewalk.git
 cd codewalk
 make build          # ./bin/codewalk
 make test           # full test suite
