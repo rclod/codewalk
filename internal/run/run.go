@@ -69,13 +69,24 @@ type Pipeline struct {
 
 // Metrics are the operational costs of a run. Cost and latency are evaluation
 // dimensions in their own right.
+//
+// Tool activity is counted in two places because it happens in two places: a
+// provider backend uses codewalk's own read-only tools, while a harness backend
+// uses its own. Reporting only the former makes a harness run look like it read
+// nothing at all.
 type Metrics struct {
-	DurationMS     int64          `json:"duration_ms"`
-	Usage          llm.Usage      `json:"usage"`
-	ToolCalls      int            `json:"tool_calls"`
-	ToolBreakdown  map[string]int `json:"tool_breakdown,omitempty"`
-	FilesInspected int            `json:"files_inspected"`
-	ModelCalls     int            `json:"model_calls"`
+	DurationMS int64     `json:"duration_ms"`
+	Usage      llm.Usage `json:"usage"`
+	// ToolCalls is every tool call made on the run's behalf, whether through
+	// codewalk's tools or reported by a harness.
+	ToolCalls int `json:"tool_calls"`
+	// CodewalkToolCalls counts only calls through codewalk's own tool surface.
+	CodewalkToolCalls int            `json:"codewalk_tool_calls"`
+	ToolBreakdown     map[string]int `json:"tool_breakdown,omitempty"`
+	// FilesInspected counts distinct files read through codewalk's tools. It is
+	// zero for harness backends, which read files themselves.
+	FilesInspected int `json:"files_inspected"`
+	ModelCalls     int `json:"model_calls"`
 }
 
 // Turn is one message in a follow-up conversation.

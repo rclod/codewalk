@@ -161,8 +161,15 @@ func formatUsage(m run.Metrics) string {
 	if m.Usage.Calls == 0 {
 		return "no model calls"
 	}
-	return fmt.Sprintf("%d model calls, %s in / %s out tokens",
+	summary := fmt.Sprintf("%d model calls, %s in / %s out tokens",
 		m.Usage.Calls, humanCount(m.Usage.InputTokens), humanCount(m.Usage.OutputTokens))
+	if m.Usage.CachedInputTokens > 0 {
+		summary += fmt.Sprintf(" (%s cached)", humanCount(m.Usage.CachedInputTokens))
+	}
+	if m.ToolCalls > 0 {
+		summary += fmt.Sprintf(", %d tool calls", m.ToolCalls)
+	}
+	return summary
 }
 
 func humanCount(n int) string {

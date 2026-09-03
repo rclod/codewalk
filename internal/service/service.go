@@ -218,11 +218,17 @@ func (s *Service) Generate(ctx context.Context, req GenerateRequest) (*GenerateR
 
 func metricsFrom(r *pipeline.Result) run.Metrics {
 	m := run.Metrics{
-		DurationMS:    r.DurationMS,
-		Usage:         r.Usage,
-		ToolCalls:     len(r.ToolCalls),
-		ToolBreakdown: tools.SortedInvocationSummary(r.ToolCalls),
-		ModelCalls:    r.Usage.Calls,
+		DurationMS:        r.DurationMS,
+		Usage:             r.Usage,
+		CodewalkToolCalls: len(r.ToolCalls),
+		ToolBreakdown:     tools.SortedInvocationSummary(r.ToolCalls),
+		ModelCalls:        r.Usage.Calls,
+	}
+	// Harness backends report their own tool activity; without adding it, a
+	// harness run appears to have inspected nothing.
+	m.ToolCalls = len(r.ToolCalls)
+	for _, stage := range r.Stages {
+		m.ToolCalls += stage.ToolCalls
 	}
 	files := map[string]bool{}
 	for _, inv := range r.ToolCalls {
