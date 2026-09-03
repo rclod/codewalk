@@ -133,3 +133,51 @@ func minimal() *Walkthrough {
 	w.Normalize()
 	return w
 }
+
+func TestFlowMayReferenceADiagramDeclaredInAStep(t *testing.T) {
+	// Authors routinely put a sequence diagram in the step that explains a flow
+	// and point the flow at it. That is valid, and validation must not depend on
+	// the order the document is walked in.
+	w := minimal()
+	w.Flows = []Flow{{ID: "provision", Name: "Provisioning", DiagramID: "provision-seq",
+		Steps: []FlowStep{{Action: "create"}}}}
+	w.Steps[0].FlowID = "provision"
+	w.Steps[0].Diagrams = []Diagram{{
+		ID: "provision-seq", Format: DiagramMermaid,
+		Source: "sequenceDiagram\n    API->>Store: insert\n    Store-->>API: id",
+	}}
+	w.Normalize()
+
+	for _, issue := range w.Validate() {
+		if issue.Severity == SeverityError {
+			t.Errorf("unexpected error: %s", issue)
+		}
+	}
+}
+
+func TestUnknownDiagramReferenceIsStillCaught(t *testing.T) {
+	w := minimal()
+	w.Flows = []Flow{{ID: "f1", Name: "Flow", DiagramID: "does-not-exist", Steps: []FlowStep{{Action: "x"}}}}
+	w.Normalize()
+	if !HasErrors(w.Validate()) {
+		t.Error("a diagram id that exists nowhere should still be an error")
+	}
+}
+
+func TestDuplicateDiagramIDsAcrossStepsAreCaught(t *testing.T) {
+	w := minimal()
+	diagram := Diagram{ID: "dup", Format: DiagramMermaid, Source: "sequenceDiagram\n    A->>B: go"}
+	w.Steps = append(w.Steps, Step{ID: "step2", Title: "Second", Explanation: "text"})
+	w.Steps[0].Diagrams = []Diagram{diagram}
+	w.Steps[1].Diagrams = []Diagram{diagram}
+
+	var duplicate bool
+	for _, issue := range w.Validate() {
+		if issue.Severity == SeverityError && strings.Contains(issue.Message, "duplicate diagram id") {
+			duplicate = true
+		}
+	}
+	if !duplicate {
+		t.Error("the same diagram id used in two steps should be reported")
+	}
+}

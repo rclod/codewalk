@@ -116,6 +116,18 @@ func (s *Store) Walkthrough(id string) (*walkthrough.Walkthrough, error) {
 	}
 	data, err := os.ReadFile(filepath.Join(s.runDir(id), "walkthrough.json"))
 	if err != nil {
+		if os.IsNotExist(err) {
+			// Say why it is missing rather than surfacing a bare path error.
+			if record, loadErr := s.Load(id); loadErr == nil {
+				switch record.Status {
+				case "running":
+					return nil, fmt.Errorf("run %s is still generating", id)
+				case "failed":
+					return nil, fmt.Errorf("run %s failed: %s", id, record.Error)
+				}
+			}
+			return nil, fmt.Errorf("run %s has no walkthrough", id)
+		}
 		return nil, err
 	}
 	return walkthrough.Decode(data)
@@ -127,14 +139,24 @@ func (s *Store) Resolve(id string) (string, error) {
 		return "", fmt.Errorf("no run id given")
 	}
 	if id == "latest" {
-		summaries, err := s.List(1)
+		// "latest" means the most recent run a reader can actually open. A run
+		// that is still generating, or that failed, has no walkthrough, and
+		// resolving to it would fail with a confusing missing-file error.
+		summaries, err := s.List(0)
 		if err != nil {
 			return "", err
 		}
 		if len(summaries) == 0 {
 			return "", fmt.Errorf("no runs have been recorded yet")
 		}
-		return summaries[0].ID, nil
+		for _, summary := range summaries {
+			if summary.Status == "complete" {
+				return summary.ID, nil
+			}
+		}
+		newest := summaries[0]
+		return "", fmt.Errorf("no completed run yet: the most recent run %s is %s",
+			newest.ID, newest.Status)
 	}
 	if _, err := os.Stat(filepath.Join(s.runDir(id), "run.json")); err == nil {
 		return id, nil

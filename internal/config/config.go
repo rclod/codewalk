@@ -137,6 +137,9 @@ type HarnessConfig struct {
 	// Env lists environment variable names to forward to the harness process.
 	// Values are taken from the current environment; no values are stored here.
 	Env []string `toml:"env"`
+	// PromptAsArgument appends the prompt as the final argument rather than
+	// writing it to the process's stdin, for CLIs that take a prompt flag.
+	PromptAsArgument bool `toml:"prompt_as_argument"`
 }
 
 // AgentConfig binds a pipeline role to a backend.
@@ -356,6 +359,9 @@ func mergeHarness(base, over HarnessConfig) HarnessConfig {
 	}
 	if len(over.Env) > 0 {
 		base.Env = over.Env
+	}
+	if over.PromptAsArgument {
+		base.PromptAsArgument = true
 	}
 	return base
 }

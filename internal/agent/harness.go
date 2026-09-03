@@ -27,6 +27,10 @@ type HarnessSpec struct {
 	// Env lists environment variable names forwarded from the current process.
 	// Values are never stored in configuration.
 	Env []string
+	// PromptAsArgument appends the prompt as the final argument instead of
+	// writing it to stdin. Some headless CLIs take the prompt as a flag value
+	// and never read stdin.
+	PromptAsArgument bool
 }
 
 // HarnessBackend runs a task by invoking an existing local coding agent.
@@ -185,8 +189,12 @@ func (h *HarnessBackend) buildInvocation(task Task, prompt string) (args []strin
 			args = append(args, "-m", h.spec.Model)
 		}
 		return args, combineSystemPrompt(task.System, prompt)
-	default: // "command": a user-defined executable reading the prompt on stdin
-		return args, combineSystemPrompt(task.System, prompt)
+	default: // "command": a user-defined executable
+		combined := combineSystemPrompt(task.System, prompt)
+		if h.spec.PromptAsArgument {
+			return append(args, combined), ""
+		}
+		return args, combined
 	}
 }
 

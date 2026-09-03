@@ -107,16 +107,24 @@ func (w *Walkthrough) Validate() []Issue {
 		}
 	}
 
+	// Diagrams can be declared at the walkthrough level, inside a step, or
+	// inside a deep dive, and a flow or the architecture section may reference
+	// any of them. Collect every id up front so reference checks do not depend
+	// on the order this function happens to walk the document in.
 	diagramIDs := map[string]bool{}
+	for _, d := range w.AllDiagrams() {
+		diagramIDs[d.ID] = true
+	}
+	seenDiagram := map[string]bool{}
 	checkDiagrams := func(ds []Diagram, base string) {
 		for i, d := range ds {
 			p := fmt.Sprintf("%s[%d]", base, i)
 			if d.ID == "" {
 				add(SeverityError, p+".id", "missing id")
-			} else if diagramIDs[d.ID] {
+			} else if seenDiagram[d.ID] {
 				add(SeverityError, p+".id", fmt.Sprintf("duplicate diagram id %q", d.ID))
 			}
-			diagramIDs[d.ID] = true
+			seenDiagram[d.ID] = true
 			if d.Format != DiagramMermaid {
 				add(SeverityWarning, p+".format", fmt.Sprintf("unsupported diagram format %q", d.Format))
 				continue

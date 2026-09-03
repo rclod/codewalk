@@ -584,9 +584,12 @@ func (r *runner) ground(ctx context.Context, w *walkthrough.Walkthrough) *walkth
 		w = r.correct(ctx, w, &modelReport)
 	}
 	// Unverifiable claims become explicit uncertainty rather than silent risk.
+	// The author often recorded the same gap already, in different words, so
+	// these are merged rather than appended: the same open question listed twice
+	// costs the reader attention and buys nothing.
 	for _, u := range modelReport.Unsupported {
-		w.Uncertainties = append(w.Uncertainties, walkthrough.Uncertainty{
-			Question: u.Claim,
+		w.Uncertainties = appendUncertainty(w.Uncertainties, walkthrough.Uncertainty{
+			Question: asQuestion(u.Claim),
 			Known:    u.Suggestion,
 			Unknown:  u.Why,
 		})
@@ -594,12 +597,117 @@ func (r *runner) ground(ctx context.Context, w *walkthrough.Walkthrough) *walkth
 	return w
 }
 
+// asQuestion phrases a claim the repository could not support as an open
+// question, since that is what the field means to a reader.
+func asQuestion(claim string) string {
+	claim = strings.TrimSpace(claim)
+	if claim == "" {
+		return claim
+	}
+	if strings.HasSuffix(claim, "?") {
+		return claim
+	}
+	return "Could not confirm: " + claim
+}
+
+// appendUncertainty adds an uncertainty unless the list already contains one
+// asking substantially the same thing.
+func appendUncertainty(existing []walkthrough.Uncertainty, add walkthrough.Uncertainty) []walkthrough.Uncertainty {
+	for _, u := range existing {
+		if similarQuestion(u.Question, add.Question) {
+			return existing
+		}
+	}
+	return append(existing, add)
+}
+
+// similarQuestion reports whether two questions are near-duplicates. Wording
+// varies between the stage that noticed a gap and the stage that reported it,
+// so this compares significant words rather than exact text.
+func similarQuestion(a, b string) bool {
+	wordsA, wordsB := significantWords(a), significantWords(b)
+	if len(wordsA) == 0 || len(wordsB) == 0 {
+		return false
+	}
+	shared := 0
+	for w := range wordsA {
+		if wordsB[w] {
+			shared++
+		}
+	}
+	union := len(wordsA) + len(wordsB) - shared
+	if union == 0 {
+		return false
+	}
+	return float64(shared)/float64(union) >= 0.5
+}
+
+// questionStopWords are words that carry no distinguishing meaning when
+// comparing two questions.
+var questionStopWords = map[string]bool{
+	"a": true, "an": true, "the": true, "is": true, "are": true, "do": true,
+	"does": true, "how": true, "what": true, "which": true, "this": true,
+	"that": true, "and": true, "or": true, "to": true, "of": true, "in": true,
+	"on": true, "for": true, "with": true, "under": true, "once": true,
+	"before": true, "after": true, "new": true, "now": true, "be": true,
+	"it": true, "its": true, "any": true, "when": true, "where": true,
+}
+
+// significantWords reduces a question to its distinguishing terms. Identifiers
+// are split into their parts, so "session_epoch" and "epoch" are recognised as
+// referring to the same thing — which is how the same gap ends up worded two
+// different ways by two different stages.
+func significantWords(s string) map[string]bool {
+	out := map[string]bool{}
+	for _, part := range identifierParts(strings.ToLower(s)) {
+		if len(part) < 3 || questionStopWords[part] {
+			continue
+		}
+		out[strings.TrimSuffix(part, "s")] = true
+	}
+	return out
+}
+
+// identifierParts splits text on punctuation and case boundaries, so
+// `SessionEpoch`, `session_epoch` and "session epoch" all yield the same parts.
+func identifierParts(s string) []string {
+	var parts []string
+	var current strings.Builder
+	flush := func() {
+		if current.Len() > 0 {
+			parts = append(parts, current.String())
+			current.Reset()
+		}
+	}
+	var previous rune
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			current.WriteRune(r)
+		case r >= 'A' && r <= 'Z':
+			if previous >= 'a' && previous <= 'z' {
+				flush()
+			}
+			current.WriteRune(r + 32)
+		default:
+			flush()
+		}
+		previous = r
+	}
+	flush()
+	return parts
+}
+
 // correct applies narrow fixes for contradicted claims.
 func (r *runner) correct(ctx context.Context, w *walkthrough.Walkthrough, report *GroundingReport) *walkthrough.Walkthrough {
-	b, err := r.stageBackend("author")
+	// Corrections run on the author's backend but are their own stage: reporting
+	// them as "author" makes progress output claim the walkthrough is being
+	// written twice.
+	b, err := r.opts.Registry.For("author")
 	if err != nil {
 		return w
 	}
+	r.emit(agent.Event{Kind: agent.EventStageStart, Role: "correction", Detail: b.Descriptor()})
 	affected := map[string]bool{}
 	for _, c := range report.Contradicted {
 		affected[c.StepID] = true
@@ -642,7 +750,9 @@ func (r *runner) correct(ctx context.Context, w *walkthrough.Walkthrough, report
 			}
 		}
 	}
-	w.Uncertainties = append(w.Uncertainties, out.Uncertainties...)
+	for _, u := range out.Uncertainties {
+		w.Uncertainties = appendUncertainty(w.Uncertainties, u)
+	}
 	w.Meta.Notes = append(w.Meta.Notes, fmt.Sprintf("grounding check corrected %d step(s)", applied))
 	r.result.Artifacts.set("correction", out)
 	return w

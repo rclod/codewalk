@@ -183,3 +183,52 @@ func TestNewIDIsTimeSortable(t *testing.T) {
 		t.Errorf("run ids must be safe as directory names: %q", earlier)
 	}
 }
+
+func TestLatestSkipsRunsWithoutAWalkthrough(t *testing.T) {
+	store := newStore(t)
+	saveRun(t, store, "20260101-120000-aaaaaa", time.Now().Add(-time.Hour))
+
+	// A newer run that is still generating must not shadow the completed one:
+	// "latest" means the most recent walkthrough a reader can open.
+	inFlight := &run.Run{
+		ID: "20260102-120000-bbbbbb", CreatedAt: time.Now(),
+		Kind: walkthrough.KindCodebase, Status: "running",
+		Repository: run.Repository{Name: "other"},
+	}
+	if err := store.Save(inFlight); err != nil {
+		t.Fatal(err)
+	}
+
+	id, err := store.Resolve("latest")
+	if err != nil {
+		t.Fatalf("resolve latest: %v", err)
+	}
+	if id != "20260101-120000-aaaaaa" {
+		t.Errorf("latest = %q, want the most recent completed run", id)
+	}
+}
+
+func TestMissingWalkthroughExplainsWhy(t *testing.T) {
+	store := newStore(t)
+	for status, want := range map[string]string{"running": "still generating", "failed": "failed"} {
+		id := "20260105-120000-" + status[:6]
+		if err := store.Save(&run.Run{ID: id, CreatedAt: time.Now(), Status: status, Error: "backend exploded"}); err != nil {
+			t.Fatal(err)
+		}
+		_, err := store.Walkthrough(id)
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("status %q produced error %v, want it to mention %q", status, err, want)
+		}
+	}
+}
+
+func TestLatestWithOnlyIncompleteRuns(t *testing.T) {
+	store := newStore(t)
+	if err := store.Save(&run.Run{ID: "20260101-120000-cccccc", CreatedAt: time.Now(), Status: "running"}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := store.Resolve("latest")
+	if err == nil || !strings.Contains(err.Error(), "no completed run") {
+		t.Errorf("error = %v, want a clear explanation that nothing is readable yet", err)
+	}
+}

@@ -81,6 +81,8 @@ func Build(cfg *config.Config, opts Options) (*agent.Registry, error) {
 			Model:   h.Model,
 			Timeout: time.Duration(h.TimeoutSeconds) * time.Second,
 			Env:     h.Env,
+
+			PromptAsArgument: h.PromptAsArgument,
 		}
 		if opts.ModelOverride != "" {
 			spec.Model = opts.ModelOverride

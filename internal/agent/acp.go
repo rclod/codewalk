@@ -66,6 +66,8 @@ type acpConn struct {
 	observer     Observer
 	role         string
 
+	tools int
+
 	closed chan struct{}
 }
 
@@ -129,19 +131,42 @@ func (h *HarnessBackend) executeACP(ctx context.Context, task Task, repo *tools.
 	}
 	var session struct {
 		SessionID string `json:"sessionId"`
+		Modes     struct {
+			AvailableModes []struct {
+				ID   string `json:"id"`
+				Meta struct {
+					Kind string `json:"kind"`
+				} `json:"_meta"`
+			} `json:"availableModes"`
+		} `json:"modes"`
 	}
 	if err := json.Unmarshal(sessionRaw, &session); err != nil || session.SessionID == "" {
 		return nil, fmt.Errorf("harness %q: ACP agent did not return a session id", h.name)
+	}
+
+	// Prefer a plan-style mode where the agent offers one. Having the agent
+	// refuse to modify anything is a stronger guarantee than codewalk declining
+	// each permission request as it arrives, and it is what the CLI adapters
+	// already do with --permission-mode plan.
+	if mode := planMode(session.Modes.AvailableModes); mode != "" {
+		if _, err := conn.call(ctx, "session/set_mode", map[string]any{
+			"sessionId": session.SessionID,
+			"modeId":    mode,
+		}); err != nil {
+			// Not fatal: the permission policy below still refuses mutations.
+			conn.note("could not select read-only mode %q: %v", mode, err)
+		}
 	}
 
 	prompt := combineSystemPrompt(task.System, task.Prompt)
 	if task.ExpectJSON {
 		prompt += jsonInstruction(task.SchemaHint)
 	}
-	if _, err := conn.call(ctx, "session/prompt", map[string]any{
+	promptResult, err := conn.call(ctx, "session/prompt", map[string]any{
 		"sessionId": session.SessionID,
 		"prompt":    []any{map[string]any{"type": "text", "text": prompt}},
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, fmt.Errorf("harness %q: ACP session/prompt failed: %w", h.name, err)
 	}
 
@@ -154,9 +179,49 @@ func (h *HarnessBackend) executeACP(ctx context.Context, task Task, repo *tools.
 		Backend:    h.name,
 		Model:      h.spec.Model,
 		Steps:      1,
+		ToolCalls:  conn.toolCalls(),
 		DurationMS: elapsed(start),
-		Usage:      LLMUsage{Calls: 1},
+		Usage:      acpUsage(promptResult),
 	}, nil
+}
+
+// planMode picks a mode that prevents modification, preferring the agent's own
+// declared "plan" kind over a mode that merely happens to be named that way.
+func planMode(modes []struct {
+	ID   string `json:"id"`
+	Meta struct {
+		Kind string `json:"kind"`
+	} `json:"_meta"`
+}) string {
+	for _, m := range modes {
+		if m.Meta.Kind == "plan" {
+			return m.ID
+		}
+	}
+	for _, m := range modes {
+		if m.ID == "plan" {
+			return m.ID
+		}
+	}
+	return ""
+}
+
+// acpUsage reads the token accounting an agent reports with its prompt result.
+func acpUsage(result json.RawMessage) LLMUsage {
+	usage := LLMUsage{Calls: 1}
+	var payload struct {
+		Usage struct {
+			InputTokens      int `json:"inputTokens"`
+			OutputTokens     int `json:"outputTokens"`
+			CachedReadTokens int `json:"cachedReadTokens"`
+		} `json:"usage"`
+	}
+	if json.Unmarshal(result, &payload) == nil {
+		usage.InputTokens = payload.Usage.InputTokens
+		usage.OutputTokens = payload.Usage.OutputTokens
+		usage.CachedInputTokens = payload.Usage.CachedReadTokens
+	}
+	return usage
 }
 
 func (c *acpConn) call(ctx context.Context, method string, params any) (json.RawMessage, error) {
@@ -271,6 +336,9 @@ func (c *acpConn) handleUpdate(params json.RawMessage) {
 			c.textMu.Unlock()
 		}
 	case "tool_call":
+		c.textMu.Lock()
+		c.tools++
+		c.textMu.Unlock()
 		if c.observer != nil {
 			c.observer.OnEvent(Event{Kind: EventToolCall, Role: c.role, Tool: p.Update.Kind, Detail: p.Update.Title})
 		}
@@ -321,6 +389,20 @@ func (c *acpConn) handlePermission(msg acpMessage) {
 	}
 	reply["result"] = map[string]any{"outcome": map[string]any{"outcome": "cancelled"}}
 	_ = c.write(reply)
+}
+
+// toolCalls reports how many tool calls the agent made.
+func (c *acpConn) toolCalls() int {
+	c.textMu.Lock()
+	defer c.textMu.Unlock()
+	return c.tools
+}
+
+// note surfaces a diagnostic without failing the run.
+func (c *acpConn) note(format string, args ...any) {
+	if c.observer != nil {
+		c.observer.OnEvent(Event{Kind: EventNote, Role: c.role, Detail: fmt.Sprintf(format, args...)})
+	}
 }
 
 func (c *acpConn) collected() string {
