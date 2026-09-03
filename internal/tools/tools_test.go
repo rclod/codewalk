@@ -34,11 +34,17 @@ func call(t *testing.T, r *tools.Repo, name string, args map[string]any) llm.Too
 	return r.Execute(context.Background(), llm.ToolCall{ID: "call-1", Name: name, Input: input})
 }
 
+// canary is content that must never appear in a tool result. It is deliberately
+// unusual: a common word would also occur in error messages and in temporary
+// directory paths such as macOS's /private/var, turning a passing sandbox into
+// a failing test.
+const canary = "COD3WALK-CANARY-MUST-NOT-BE-READ"
+
 func TestPathSandboxRejectsEscapes(t *testing.T) {
 	repoTools, repo := newTools(t)
 	// A file outside the repository that must stay unreachable.
 	outside := filepath.Join(filepath.Dir(repo.Root), "outside-secret.txt")
-	if err := os.WriteFile(outside, []byte("private"), 0o600); err != nil {
+	if err := os.WriteFile(outside, []byte(canary), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.Remove(outside) })
@@ -53,7 +59,7 @@ func TestPathSandboxRejectsEscapes(t *testing.T) {
 		if !res.IsError {
 			t.Errorf("read_file(%q) succeeded; paths outside the repository must be refused", path)
 		}
-		if strings.Contains(res.Content, "private") {
+		if strings.Contains(res.Content, canary) {
 			t.Fatalf("read_file(%q) leaked content from outside the repository", path)
 		}
 	}
@@ -62,7 +68,7 @@ func TestPathSandboxRejectsEscapes(t *testing.T) {
 func TestSymlinkEscapeIsRefused(t *testing.T) {
 	repoTools, repo := newTools(t)
 	outside := filepath.Join(t.TempDir(), "outside.txt")
-	if err := os.WriteFile(outside, []byte("private"), 0o600); err != nil {
+	if err := os.WriteFile(outside, []byte(canary), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	link := filepath.Join(repo.Root, "link.txt")
@@ -72,6 +78,9 @@ func TestSymlinkEscapeIsRefused(t *testing.T) {
 	res := call(t, repoTools, "read_file", map[string]any{"path": "link.txt"})
 	if !res.IsError {
 		t.Error("a symlink pointing outside the repository must be refused")
+	}
+	if strings.Contains(res.Content, canary) {
+		t.Fatalf("read_file through a symlink leaked content from outside the repository")
 	}
 }
 
