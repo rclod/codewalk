@@ -1,0 +1,17 @@
+# Build output
+/bin/
+/dist/
+codewalk
+
+# Go
+*.test
+*.out
+coverage.txt
+
+# Local development
+.env
+*.local.toml
+
+# Editor / OS
+.DS_Store
+*.swp

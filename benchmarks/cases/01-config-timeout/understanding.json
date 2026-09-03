@@ -1,0 +1,28 @@
+{
+  "purpose": "The client waits longer for the payments provider before giving up.",
+  "essential_behavior_changes": [
+    {
+      "id": "B1",
+      "name": "Outbound request timeout raised",
+      "description": "The HTTP client used for the payments provider now allows 30 seconds instead of 5 before a request fails.",
+      "essential": true
+    }
+  ],
+  "important_components": [
+    {
+      "id": "K1",
+      "name": "Payments HTTP client",
+      "description": "The client in internal/payments/client.go that calls the external provider. It is the only place the timeout applies.",
+      "essential": true
+    }
+  ],
+  "before_state": "Requests to the payments provider failed after 5 seconds.",
+  "after_state": "Requests to the payments provider fail after 30 seconds.",
+  "incidental": [
+    {
+      "id": "I1",
+      "name": "Everything else in the repository",
+      "description": "No other behaviour changes. A walkthrough that explains the wider payments architecture here is overshooting the change."
+    }
+  ]
+}

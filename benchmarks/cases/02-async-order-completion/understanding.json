@@ -1,0 +1,63 @@
+{
+  "purpose": "Checkout responses no longer wait for the payments provider; authorisation happens after the response, driven by a worker.",
+  "essential_concepts": [
+    {
+      "id": "C1",
+      "name": "Asynchronous completion",
+      "description": "A successful checkout response now means the order was accepted and recorded, not that payment was authorised. Completion happens later, out of band.",
+      "essential": true
+    },
+    {
+      "id": "C2",
+      "name": "Outbox record as the handoff",
+      "description": "The handler and the worker communicate through a row in the outbox table written in the same operation as the order, rather than through an in-process call.",
+      "essential": true
+    }
+  ],
+  "essential_behavior_changes": [
+    {
+      "id": "B1",
+      "name": "Authorisation leaves the request path",
+      "description": "OrderService.Create no longer calls the payments client. It writes the order and an outbox entry and returns.",
+      "essential": true
+    },
+    {
+      "id": "B2",
+      "name": "Orders gain a lifecycle state",
+      "description": "Orders are created as 'pending' and become 'authorized' or 'failed' once the worker has run, so the order's state now moves over time.",
+      "essential": true
+    },
+    {
+      "id": "B3",
+      "name": "Failures surface later",
+      "description": "A declined payment no longer fails the HTTP request; it leaves the order in the failed state and the caller must observe that separately.",
+      "essential": true
+    }
+  ],
+  "important_components": [
+    {"id": "K1", "name": "OrderService", "description": "Creates orders. Changed: it now records an outbox entry instead of authorising payment inline.", "essential": true},
+    {"id": "K2", "name": "Outbox store", "description": "New. Persists pending work alongside the order so nothing is lost between the two execution contexts.", "essential": true},
+    {"id": "K3", "name": "Completion worker", "description": "New. Claims outbox entries, calls the payments client and updates the order state.", "essential": true},
+    {"id": "K4", "name": "Payments client", "description": "Unchanged, but now called from the worker rather than from the request path.", "essential": true}
+  ],
+  "important_relationships": [
+    {"id": "R1", "name": "OrderService writes to the outbox", "description": "The service inserts the order and the outbox entry together."},
+    {"id": "R2", "name": "Worker reads the outbox and calls payments", "description": "The worker polls for pending entries and drives authorisation."}
+  ],
+  "important_flows": [
+    {
+      "id": "F1",
+      "name": "Checkout",
+      "description": "POST /orders -> OrderService.Create -> order and outbox rows written -> response returned -> worker claims the entry -> payments authorisation -> order state updated."
+    }
+  ],
+  "before_state": "POST /orders authorised payment inside the request. The response was only successful if the provider accepted the payment, and a slow provider slowed the request.",
+  "after_state": "POST /orders persists a pending order plus an outbox entry and returns immediately. A separate worker process authorises payment and moves the order to authorized or failed.",
+  "supporting_context": [
+    {"id": "S1", "name": "The worker is a separate entry point", "description": "cmd/worker is a new binary, so the deployment now runs two processes."},
+    {"id": "S2", "name": "Retry behaviour", "description": "Entries that fail are left for the next poll rather than retried immediately."}
+  ],
+  "incidental": [
+    {"id": "I1", "name": "The go.mod and README edits", "description": "Housekeeping that carries no behavioural meaning."}
+  ]
+}

@@ -1,0 +1,5 @@
+name = "Understand the checkout service"
+description = "A codebase walkthrough of a two-process service: an HTTP API, an outbox table and a completion worker."
+kind = "codebase"
+tags = ["codebase", "architecture", "asynchronous"]
+expected_complexity = 3

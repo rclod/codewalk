@@ -1,0 +1,39 @@
+{
+  "purpose": "A checkout service that accepts orders over HTTP and completes payment authorisation asynchronously.",
+  "essential_concepts": [
+    {
+      "id": "C1",
+      "name": "Two processes, one database",
+      "description": "The API and the worker are separate binaries that coordinate only through the shared database, not through direct calls.",
+      "essential": true
+    },
+    {
+      "id": "C2",
+      "name": "Order lifecycle",
+      "description": "An order is created pending and later becomes authorized or failed. Nothing else moves it between states.",
+      "essential": true
+    }
+  ],
+  "important_components": [
+    {"id": "K1", "name": "HTTP API (cmd/api)", "description": "Serves POST /orders and returns 202 once the order is recorded.", "essential": true},
+    {"id": "K2", "name": "OrderService", "description": "Writes the order and its outbox entry in one transaction.", "essential": true},
+    {"id": "K3", "name": "Outbox store", "description": "Holds pending completion work and mediates claiming between workers.", "essential": true},
+    {"id": "K4", "name": "Completion worker (cmd/worker)", "description": "Polls the outbox, calls the payments provider and records the outcome.", "essential": true},
+    {"id": "K5", "name": "Payments client", "description": "The only outbound integration, calling an external provider over HTTP.", "essential": true},
+    {"id": "K6", "name": "Schema (migrations)", "description": "orders and order_outbox define the persisted state.", "essential": false}
+  ],
+  "important_relationships": [
+    {"id": "R1", "name": "API writes, worker reads", "description": "The outbox table is the handoff point between the two processes."},
+    {"id": "R2", "name": "Worker to payments provider", "description": "The only place an external call is made."}
+  ],
+  "important_flows": [
+    {"id": "F1", "name": "Order acceptance", "description": "POST /orders decodes the request, writes order and outbox rows transactionally, and returns 202."},
+    {"id": "F2", "name": "Order completion", "description": "The worker ticks, claims up to 20 entries, authorises each and sets the order status, returning transport failures to pending."}
+  ],
+  "supporting_context": [
+    {"id": "S1", "name": "Failure handling", "description": "A declined payment is final; a transport error leaves the entry pending for the next tick."}
+  ],
+  "incidental": [
+    {"id": "I1", "name": "go.mod and README", "description": "No architectural meaning."}
+  ]
+}

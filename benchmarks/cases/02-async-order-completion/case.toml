@@ -1,0 +1,7 @@
+name = "Order completion moves to a background worker"
+description = "A synchronous request path becomes asynchronous: the handler persists an outbox record and a worker completes payment authorisation."
+kind = "change"
+tags = ["architectural", "asynchronous", "persistence", "state"]
+base = "snapshot-001"
+head = "snapshot-002"
+expected_complexity = 4

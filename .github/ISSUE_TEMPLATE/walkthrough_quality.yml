@@ -1,0 +1,56 @@
+name: Walkthrough quality
+description: A walkthrough was inaccurate, unclear, bloated or drifted into code review
+labels: [quality]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Quality reports are the most valuable kind of feedback for this project.
+        Please remove anything private before posting.
+
+  - type: dropdown
+    id: problem
+    attributes:
+      label: What went wrong
+      options:
+        - Something important was missing
+        - Something was wrong or invented
+        - The overall picture was misleading, even though the details were right
+        - Too much unnecessary content
+        - Too shallow for the change
+        - Concepts arrived in a confusing order
+        - It drifted into reviewing or grading the code
+        - A diagram did not help, or contradicted the code
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: detail
+    attributes:
+      label: What you expected to understand, and did not
+      description: Be as concrete as you can. Quote the walkthrough where it helps.
+    validations:
+      required: true
+
+  - type: textarea
+    id: walkthrough
+    attributes:
+      label: Walkthrough
+      description: |
+        Output of `codewalk show <run-id> --format json` or `--format markdown`,
+        with anything private removed. Optional but very helpful.
+      render: json
+
+  - type: input
+    id: backend
+    attributes:
+      label: Backend and model
+    validations:
+      required: true
+
+  - type: textarea
+    id: eval
+    attributes:
+      label: Evaluation output
+      description: Output of `codewalk eval check <run-id>`, if you ran it

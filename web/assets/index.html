@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>codewalk</title>
+    <link rel="stylesheet" href="/app.css" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🧭</text></svg>" />
+  </head>
+  <body>
+    <div id="app">
+      <aside id="sidebar">
+        <header class="sidebar-header">
+          <h1>codewalk</h1>
+          <p class="tagline">Understand code, not just diffs.</p>
+        </header>
+
+        <section class="panel" id="new-walkthrough">
+          <h2>New walkthrough</h2>
+          <div id="repo-summary" class="repo-summary">Detecting repository…</div>
+          <div class="field">
+            <label for="wt-type">Explain</label>
+            <select id="wt-type">
+              <option value="change">A change</option>
+              <option value="codebase">The whole repository</option>
+            </select>
+          </div>
+          <div class="field" data-when="change">
+            <label for="wt-selector">Scope</label>
+            <select id="wt-selector">
+              <option value="auto">Automatic (branch, else uncommitted)</option>
+              <option value="branch">Branch vs base</option>
+              <option value="working-tree">Uncommitted changes</option>
+              <option value="staged">Staged changes</option>
+              <option value="range">Explicit range</option>
+            </select>
+          </div>
+          <div class="field" data-when="change" id="base-field">
+            <label for="wt-base">Base</label>
+            <input id="wt-base" type="text" placeholder="detected automatically" />
+          </div>
+          <div class="field hidden" data-when="change" id="range-field">
+            <label for="wt-range">Range</label>
+            <input id="wt-range" type="text" placeholder="main..feature" />
+          </div>
+          <div class="field">
+            <label for="wt-focus">Focus <span class="hint">optional</span></label>
+            <input id="wt-focus" type="text" placeholder="e.g. just the persistence changes" />
+          </div>
+          <button id="generate" class="primary">Generate walkthrough</button>
+          <div id="progress" class="progress hidden"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Recent</h2>
+          <ul id="run-list" class="run-list"></ul>
+        </section>
+      </aside>
+
+      <main id="main">
+        <div id="empty-state" class="empty-state">
+          <h2>Nothing loaded yet</h2>
+          <p>
+            Generate a walkthrough of the current change, or pick a previous one
+            from the list. codewalk explains what the code does and how it fits
+            together — it does not review or grade it.
+          </p>
+        </div>
+
+        <article id="walkthrough" class="hidden">
+          <header id="wt-header"></header>
+          <nav id="tabs" class="tabs"></nav>
+          <div id="tab-content"></div>
+        </article>
+      </main>
+
+      <aside id="chat-panel" class="hidden">
+        <header class="chat-header">
+          <h2>Ask about this walkthrough</h2>
+          <button id="chat-close" class="icon-button" title="Hide">×</button>
+        </header>
+        <div id="chat-log" class="chat-log"></div>
+        <form id="chat-form">
+          <textarea id="chat-input" rows="3" placeholder="e.g. why is the worker involved? &#10;go deeper on step 3"></textarea>
+          <button type="submit" class="primary">Ask</button>
+        </form>
+        <p class="chat-hint">
+          Follow-ups reuse the evidence from this walkthrough instead of
+          re-investigating the repository.
+        </p>
+      </aside>
+
+      <button id="chat-toggle" class="chat-toggle hidden" title="Ask a follow-up">Ask</button>
+    </div>
+
+    <div id="source-modal" class="modal hidden">
+      <div class="modal-body">
+        <header>
+          <span id="source-title"></span>
+          <button id="source-close" class="icon-button">×</button>
+        </header>
+        <pre id="source-content"></pre>
+      </div>
+    </div>
+
+    <script src="/vendor/mermaid.min.js"></script>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

@@ -1,0 +1,7 @@
+name = "Raise the outbound HTTP timeout"
+description = "A single configuration constant changes. The walkthrough should stay very short."
+kind = "change"
+tags = ["trivial", "configuration"]
+base = "snapshot-001"
+head = "snapshot-002"
+expected_complexity = 1

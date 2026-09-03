@@ -1,0 +1,54 @@
+name: Bug report
+description: Something in codewalk does not work
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please remove anything private before posting: repository names, file
+        paths, source excerpts and API keys.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you run, and what did codewalk do?
+      placeholder: |
+        $ codewalk pr --base main
+        ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: codewalk version
+      description: Output of `codewalk version`
+    validations:
+      required: true
+
+  - type: input
+    id: backend
+    attributes:
+      label: Backend
+      description: Which provider or harness (`codewalk config check` summarises it)
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Repository size, language, unusual git state
